@@ -154,6 +154,8 @@
     const calculateSquareCoordinates = (e: TouchEvent): Coordinates => {
         const touchX = e.changedTouches[0].clientX;
         const touchY = e.changedTouches[0].clientY;
+
+        // couldn't abstract this, board size changes extra
         const boardRect = document
             .querySelector(".board")
             ?.getBoundingClientRect();
@@ -170,31 +172,52 @@
         i: number,
         j: number
     ) => {
-        e.preventDefault();
         const coord = { i, j };
         const pieceEntity = board[i][j].piece;
-        if (!pieceEntity) return;
-        selectedPiece = { ...pieceEntity, ...coord };
 
-        mousePosition =
-            e instanceof MouseEvent
-                ? { x: e.clientX, y: e.clientY }
-                : { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        // if there is a selected piece move it now
+        if (selectedPiece && (selectedPiece.i !== i || selectedPiece.j !== j)) {
+            if (!mute)
+                if (board[i][j].piece) {
+                    takeAudio.currentTime = 0;
+                    takeAudio.play();
+                } else {
+                    moveAudio.currentTime = 0;
+                    moveAudio.play();
+                }
 
-        pieceHeld = true;
-        highlight = coord;
+            board[i][j].piece = selectedPiece;
+            board[selectedPiece.i][selectedPiece.j].piece = null;
+            selectedPiece = null;
+            pieceHeld = false;
+            highlight = null;
+            // else select it and prepare to move it
+        } else {
+            // TODO: why does tap-tap (not drag-release) reselect placed piece for touch? 
+            if (!pieceEntity) return;
 
-        if (e instanceof TouchEvent) {
-            e.target?.addEventListener("touchmove", handleTouchMove);
+            selectedPiece = { ...pieceEntity, ...coord };
 
-            const handleTouchEvent = (ee: Event) => {
-                const touchEvent = ee as TouchEvent;
-                const { i, j } = calculateSquareCoordinates(touchEvent);
-                handlePressUp(touchEvent, i, j);
-                e.target?.removeEventListener("touchmove", handleTouchMove);
-            };
-            e.target?.addEventListener("touchend", handleTouchEvent);
-            e.target?.addEventListener("touchcancel", handleTouchEvent);
+            mousePosition =
+                e instanceof MouseEvent
+                    ? { x: e.clientX, y: e.clientY }
+                    : { x: e.touches[0].clientX, y: e.touches[0].clientY };
+
+            pieceHeld = true;
+            highlight = coord;
+
+            if (e instanceof TouchEvent) {
+                e.target?.addEventListener("touchmove", handleTouchMove);
+
+                const handleTouchEvent = (ee: Event) => {
+                    const touchEvent = ee as TouchEvent;
+                    const { i, j } = calculateSquareCoordinates(touchEvent);
+                    handlePressUp(touchEvent, i, j);
+                    e.target?.removeEventListener("touchmove", handleTouchMove);
+                };
+                e.target?.addEventListener("touchend", handleTouchEvent);
+                e.target?.addEventListener("touchcancel", handleTouchEvent);
+            }
         }
     };
 
@@ -204,7 +227,7 @@
         j: number
     ) => {
         e.preventDefault();
-        if (!selectedPiece) return;
+        if (!pieceHeld || !selectedPiece) return;
         if (selectedPiece.i === i && selectedPiece.j === j) {
             pieceHeld = false;
             return;
