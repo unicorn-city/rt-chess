@@ -151,33 +151,51 @@
     let moveAudio: HTMLAudioElement;
     let takeAudio: HTMLAudioElement;
 
+    const calculateSquareCoordinates = (e: TouchEvent): Coordinates => {
+        const touchX = e.changedTouches[0].clientX;
+        const touchY = e.changedTouches[0].clientY;
+        const boardRect = document
+            .querySelector(".board")
+            ?.getBoundingClientRect();
+
+        if (!boardRect) throw new Error("boardRect is null");
+        const i = Math.floor((touchY - boardRect.top) / squareSize);
+        const j = Math.floor((touchX - boardRect.left) / squareSize);
+
+        return { i, j };
+    };
+
     const handlePressDown = (
         e: MouseEvent | TouchEvent,
         i: number,
         j: number
     ) => {
         e.preventDefault();
-
         const coord = { i, j };
         const pieceEntity = board[i][j].piece;
         if (!pieceEntity) return;
         selectedPiece = { ...pieceEntity, ...coord };
 
-        if (e?.touches) {
-            e.preventDefault();
-            mousePosition = {
-                x: e?.touches[0].clientX,
-                y: e?.touches[0].clientY,
-            };
-        } else if (e?.clientX && e?.clientY)
-            mousePosition = { x: e.clientX, y: e.clientY };
+        mousePosition =
+            e instanceof MouseEvent
+                ? { x: e.clientX, y: e.clientY }
+                : { x: e.touches[0].clientX, y: e.touches[0].clientY };
 
         pieceHeld = true;
         highlight = coord;
 
-        // if (e?.touches) {
-        //     e.target.addEventListener("touchmove", handleTouchMove);
-        // }
+        if (e instanceof TouchEvent) {
+            e.target?.addEventListener("touchmove", handleTouchMove);
+
+            const handleTouchEvent = (ee: Event) => {
+                const touchEvent = ee as TouchEvent;
+                const { i, j } = calculateSquareCoordinates(touchEvent);
+                handlePressUp(touchEvent, i, j);
+                e.target?.removeEventListener("touchmove", handleTouchMove);
+            };
+            e.target?.addEventListener("touchend", handleTouchEvent);
+            e.target?.addEventListener("touchcancel", handleTouchEvent);
+        }
     };
 
     const handlePressUp = (
@@ -185,6 +203,7 @@
         i: number,
         j: number
     ) => {
+        e.preventDefault();
         if (!selectedPiece) return;
         if (selectedPiece.i === i && selectedPiece.j === j) {
             pieceHeld = false;
@@ -205,12 +224,10 @@
             pieceHeld = false;
             highlight = null;
         }
-
-        // if (e?.changedTouches)
-        //     e.target.removeEventListener("touchmove", handleTouchMove);
     };
 
     function handleMouseMove(e) {
+        e.preventDefault();
         mousePosition = { x: e.clientX, y: e.clientY };
     }
 
@@ -245,7 +262,6 @@
     <div
         class="board grid grid-cols-8 grid-rows-8 gap-0 rounded overflow-hidden shadow-md shadow-slate-950 touch-none"
         on:mousemove={handleMouseMove}
-        on:touchmove={handleTouchMove}
         role="presentation"
     >
         <div
@@ -268,7 +284,6 @@
                         on:mousedown={(e) => handlePressDown(e, i, j)}
                         on:touchstart={(e) => handlePressDown(e, i, j)}
                         on:mouseup={(e) => handlePressUp(e, i, j)}
-                        on:touchend={(e) => handlePressUp(e, i, j)}
                         role="button"
                         tabindex={i * 8 + j}
                         class="w-full h-full {square.color === Color.Light

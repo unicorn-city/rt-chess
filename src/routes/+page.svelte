@@ -1,10 +1,22 @@
 <script lang="ts">
     import Board from "$lib/components/board.svelte";
+    import { onMount } from "svelte";
 
     let mute = true;
+
+    let insetBottom = 0;
+
+    onMount(() => {
+        insetBottom =
+            document.documentElement.clientHeight - window.innerHeight;
+        window.addEventListener("resize", () => {
+            insetBottom =
+                document.documentElement.clientHeight - window.innerHeight;
+        });
+    });
 </script>
 
-<div class="flex flex-col flex-1">
+<div class="flex flex-col flex-1" style="padding-bottom: {insetBottom}px;">
     <div
         class=" w-full h-20 flex place-items-center place-content-center md:place-content-start md:pl-8"
     >
@@ -19,9 +31,8 @@
     </div>
     <div class="flex flex-1 flex-col place-content-center place-items-center">
         <Board {mute} />
-        <button on:click={() => (mute = !mute)}
-            class="h-12 w-24">
-            <p class="text-slate-400 text-sm font-bold">
+        <button on:click={() => (mute = !mute)} class="h-10 mt-2 w-24">
+            <p class="text-slate-400 font-serif italic text-sm font-bold">
                 {mute ? "unmute" : "mute"}
             </p>
         </button>
