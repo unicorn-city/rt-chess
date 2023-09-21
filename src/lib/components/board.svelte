@@ -1,13 +1,15 @@
 <script lang="ts">
+    export let mute = false;
+
     import { onMount } from "svelte";
 
     enum Piece {
-        Pawn,
-        Knight,
-        Bishop,
-        Rook,
-        Queen,
-        King,
+        Pawn = "Pawn",
+        Knight = "Knight",
+        Bishop = "Bishop",
+        Rook = "Rook",
+        Queen = "Queen",
+        King = "King",
     }
 
     enum Color {
@@ -97,6 +99,11 @@
         },
     };
 
+    type Coordinates = {
+        i: number;
+        j: number;
+    };
+
     const board: Square[][] = new Array();
     const startingBoardString = "♜♞♝♛♚♝♞♜♟♟♟♟♟♟♟♟8888♙♙♙♙♙♙♙♙♖♘♗♕♔♗♘♖";
 
@@ -106,17 +113,12 @@
             board[i][j] = {
                 piece: null,
                 color: (i + j) % 2 == 0 ? Color.Light : Color.Dark,
+                highlight: false,
             };
         }
     }
 
-    let highlight: {
-        i: number | null;
-        j: number | null;
-    } = {
-        i: null,
-        j: null,
-    };
+    let highlight: Coordinates | null = null;
 
     {
         let squareIndex = 0;
@@ -141,50 +143,149 @@
             (Math.min(window.innerHeight, window.innerWidth) - 64) / 8
         ));
 
+    let selectedPiece: (PieceEntity & Coordinates) | null = null;
+    let pieceHeld = false;
+
+    let mousePosition = { x: 0, y: 0 };
+
+    let moveAudio: HTMLAudioElement;
+    let takeAudio: HTMLAudioElement;
+
+    const handlePressDown = (
+        e: MouseEvent | TouchEvent,
+        i: number,
+        j: number
+    ) => {
+        e.preventDefault();
+
+        const coord = { i, j };
+        const pieceEntity = board[i][j].piece;
+        if (!pieceEntity) return;
+        selectedPiece = { ...pieceEntity, ...coord };
+
+        if (e?.touches) {
+            e.preventDefault();
+            mousePosition = {
+                x: e?.touches[0].clientX,
+                y: e?.touches[0].clientY,
+            };
+        } else if (e?.clientX && e?.clientY)
+            mousePosition = { x: e.clientX, y: e.clientY };
+
+        pieceHeld = true;
+        highlight = coord;
+
+        // if (e?.touches) {
+        //     e.target.addEventListener("touchmove", handleTouchMove);
+        // }
+    };
+
+    const handlePressUp = (
+        e: MouseEvent | TouchEvent,
+        i: number,
+        j: number
+    ) => {
+        if (!selectedPiece) return;
+        if (selectedPiece.i === i && selectedPiece.j === j) {
+            pieceHeld = false;
+            return;
+        } else {
+            if (!mute)
+                if (board[i][j].piece) {
+                    takeAudio.currentTime = 0;
+                    takeAudio.play();
+                } else {
+                    moveAudio.currentTime = 0;
+                    moveAudio.play();
+                }
+
+            board[i][j].piece = selectedPiece;
+            board[selectedPiece.i][selectedPiece.j].piece = null;
+            selectedPiece = null;
+            pieceHeld = false;
+            highlight = null;
+        }
+
+        // if (e?.changedTouches)
+        //     e.target.removeEventListener("touchmove", handleTouchMove);
+    };
+
+    function handleMouseMove(e) {
+        mousePosition = { x: e.clientX, y: e.clientY };
+    }
+
+    function handleTouchMove(e) {
+        e.preventDefault();
+        let touch = e.touches[0];
+        if (touch) mousePosition = { x: touch.clientX, y: touch.clientY };
+    }
+
     onMount(() => {
+        moveAudio = new Audio("./sounds/bass_boop.mp3");
+        moveAudio.volume = 0.2;
+        takeAudio = new Audio("./sounds/killshot.mp3");
+        takeAudio.volume = 0.5;
+
         squareSize = calculateSquareSize();
-
-        window.addEventListener("resize", () => {
-            squareSize = calculateSquareSize();
-        });
-
-        document.querySelectorAll(".piece").forEach((e) => {
-            e.addEventListener("click", (e) => {
-                const piece = e.target as HTMLElement;
-                const i = parseInt(piece.classList[1].split("-")[1]);
-                const j = parseInt(piece.classList[2].split("-")[1]);
-                const pieceEntity = board[i][j].piece;
-                if (!pieceEntity) return;
-                highlight = {
-                    i,
-                    j,
-                };
-            });
-        });
     });
+
+    $: displayPiece =
+        selectedPiece && pieceHeld
+            ? pieceToGylphDict[selectedPiece.color][selectedPiece.piece]
+            : "";
 </script>
 
-<div class="self-center select-none">
+<svelte:window
+    on:resize={() => {
+        squareSize = calculateSquareSize();
+    }}
+/>
+
+<div class="self-center select-none touch-none">
     <div
-        class="grid grid-cols-8 grid-rows-8 gap-0 rounded overflow-hidden shadow-md shadow-slate-950"
+        class="board grid grid-cols-8 grid-rows-8 gap-0 rounded overflow-hidden shadow-md shadow-slate-950 touch-none"
+        on:mousemove={handleMouseMove}
+        on:touchmove={handleTouchMove}
+        role="presentation"
     >
+        <div
+            style="
+                font-size: {squareSize * 0.7}px; 
+                line-height: {squareSize}px; 
+                width: {squareSize}px; 
+                height: {squareSize}px;
+                left: {mousePosition.x - squareSize / 2}px;
+                top: {mousePosition.y - squareSize / 2}px;
+                "
+            class="absolute pointer-events-none text-center"
+        >
+            {displayPiece}
+        </div>
         {#each board as row, i}
             {#each row as square, j}
                 <div style="width: {squareSize}px; height: {squareSize}px;">
                     <div
+                        on:mousedown={(e) => handlePressDown(e, i, j)}
+                        on:touchstart={(e) => handlePressDown(e, i, j)}
+                        on:mouseup={(e) => handlePressUp(e, i, j)}
+                        on:touchend={(e) => handlePressUp(e, i, j)}
+                        role="button"
+                        tabindex={i * 8 + j}
                         class="w-full h-full {square.color === Color.Light
-                            ? i !== highlight.i || j !== highlight.j
+                            ? i !== highlight?.i || j !== highlight?.j
                                 ? 'bg-slate-300'
                                 : 'bg-green-300'
-                            : i !== highlight.i || j !== highlight.j
+                            : i !== highlight?.i || j !== highlight?.j
                             ? 'bg-slate-400'
                             : 'bg-green-400'} "
                     >
-                        {#if square.piece}
+                        {#if square.piece && !(pieceHeld && selectedPiece?.i === i && selectedPiece?.j === j)}
                             <div
-                                style="font-size: {squareSize * 0.7}px; 
-                                    line-height: {squareSize}px;"
-                                class="piece i-{i} j-{j} text-center"
+                                style="
+                                    font-size: {squareSize * 0.7}px; 
+                                    line-height: {squareSize}px;
+                                "
+                                class="text-center"
                             >
                                 {pieceToGylphDict[square.piece.color][
                                     square.piece.piece
