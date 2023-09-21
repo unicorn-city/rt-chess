@@ -282,10 +282,10 @@
 />
 
 <div class="self-center select-none touch-none">
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
     <div
         class="board grid grid-cols-8 grid-rows-8 gap-0 rounded overflow-hidden shadow-md shadow-slate-950 touch-none"
         on:mousemove={handleMouseMove}
-        role="presentation"
     >
         <div
             style="
@@ -303,11 +303,11 @@
         {#each board as row, i}
             {#each row as square, j}
                 <div style="width: {squareSize}px; height: {squareSize}px;">
+                    <!-- svelte-ignore a11y-no-noninteractive-tabindex -->
                     <div
                         on:mousedown={(e) => handlePressDown(e, i, j)}
                         on:touchstart={(e) => handlePressDown(e, i, j)}
                         on:mouseup={(e) => handlePressUp(e, i, j)}
-                        role="button"
                         tabindex={i * 8 + j}
                         class="w-full h-full {square.color === Color.Light
                             ? i !== highlight?.i || j !== highlight?.j
